@@ -2,38 +2,8 @@
 
 import uuid
 from dataclasses import dataclass, field
-from decimal import Decimal
 
 from sendparcel.enums import ShipmentStatus
-from sendparcel.types import AddressInfo, ParcelInfo
-
-
-@dataclass
-class CLIOrder:
-    """In-memory Order for CLI testing. Satisfies sendparcel Order protocol."""
-
-    sender_address: AddressInfo
-    receiver_address: AddressInfo
-    parcels: list[ParcelInfo]
-
-    def get_total_weight(self) -> Decimal:
-        """Sum of all parcel weights."""
-        return sum(
-            (p["weight_kg"] for p in self.parcels),
-            start=Decimal("0"),
-        )
-
-    def get_parcels(self) -> list[ParcelInfo]:
-        """Return parcel list."""
-        return self.parcels
-
-    def get_sender_address(self) -> AddressInfo:
-        """Return sender address."""
-        return self.sender_address
-
-    def get_receiver_address(self) -> AddressInfo:
-        """Return receiver address."""
-        return self.receiver_address
 
 
 @dataclass

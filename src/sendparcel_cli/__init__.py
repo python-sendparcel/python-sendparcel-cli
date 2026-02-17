@@ -3,10 +3,9 @@
 __version__ = "0.1.0"
 
 from sendparcel_cli.config import ConfigManager
-from sendparcel_cli.models import CLIOrder, CLIShipment, CLIShipmentRepository
+from sendparcel_cli.models import CLIShipment, CLIShipmentRepository
 
 __all__ = [
-    "CLIOrder",
     "CLIShipment",
     "CLIShipmentRepository",
     "ConfigManager",

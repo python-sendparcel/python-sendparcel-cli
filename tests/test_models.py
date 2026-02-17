@@ -1,82 +1,9 @@
 """Tests for CLI in-memory protocol implementations."""
 
-from decimal import Decimal
-
 from sendparcel.enums import ShipmentStatus
-from sendparcel.protocols import Order, Shipment, ShipmentRepository
+from sendparcel.protocols import Shipment, ShipmentRepository
 
-from sendparcel_cli.models import CLIOrder, CLIShipment, CLIShipmentRepository
-
-
-class TestCLIOrder:
-    def test_satisfies_order_protocol(self) -> None:
-        order = CLIOrder(
-            sender_address={
-                "first_name": "Jan",
-                "last_name": "Nadawca",
-                "phone": "500100200",
-                "email": "sender@test.com",
-                "street": "Testowa",
-                "building_number": "1",
-                "city": "Warszawa",
-                "postal_code": "00-001",
-                "country_code": "PL",
-            },
-            receiver_address={
-                "first_name": "Anna",
-                "last_name": "Odbiorca",
-                "phone": "600200300",
-                "email": "receiver@test.com",
-            },
-            parcels=[{"weight_kg": Decimal("2.5")}],
-        )
-        assert isinstance(order, Order)
-
-    def test_get_total_weight(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[
-                {"weight_kg": Decimal("1.0")},
-                {"weight_kg": Decimal("2.5")},
-            ],
-        )
-        assert order.get_total_weight() == Decimal("3.5")
-
-    def test_get_total_weight_empty(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
-        assert order.get_total_weight() == Decimal("0")
-
-    def test_get_parcels(self) -> None:
-        parcels = [{"weight_kg": Decimal("1.0")}]
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=parcels,
-        )
-        assert order.get_parcels() == parcels
-
-    def test_get_sender_address(self) -> None:
-        addr = {"first_name": "Jan", "city": "Warszawa"}
-        order = CLIOrder(
-            sender_address=addr,
-            receiver_address={},
-            parcels=[],
-        )
-        assert order.get_sender_address() == addr
-
-    def test_get_receiver_address(self) -> None:
-        addr = {"first_name": "Anna", "city": "Kraków"}
-        order = CLIOrder(
-            sender_address={},
-            receiver_address=addr,
-            parcels=[],
-        )
-        assert order.get_receiver_address() == addr
+from sendparcel_cli.models import CLIShipment, CLIShipmentRepository
 
 
 class TestCLIShipment:
