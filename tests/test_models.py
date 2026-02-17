@@ -81,24 +81,11 @@ class TestCLIOrder:
 
 class TestCLIShipment:
     def test_satisfies_shipment_protocol(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[{"weight_kg": Decimal("1.0")}],
-        )
-        shipment = CLIShipment(
-            order=order,
-            provider="inpost_locker",
-        )
+        shipment = CLIShipment(provider="inpost_locker")
         assert isinstance(shipment, Shipment)
 
     def test_defaults(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
-        shipment = CLIShipment(order=order, provider="dpd_standard")
+        shipment = CLIShipment(provider="dpd_standard")
         assert shipment.status == ShipmentStatus.NEW
         assert shipment.external_id == ""
         assert shipment.tracking_number == ""
@@ -106,22 +93,12 @@ class TestCLIShipment:
         assert shipment.id  # auto-generated, non-empty
 
     def test_id_is_unique(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
-        s1 = CLIShipment(order=order, provider="test")
-        s2 = CLIShipment(order=order, provider="test")
+        s1 = CLIShipment(provider="test")
+        s2 = CLIShipment(provider="test")
         assert s1.id != s2.id
 
     def test_mutable_fields(self) -> None:
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
-        shipment = CLIShipment(order=order, provider="test")
+        shipment = CLIShipment(provider="test")
         shipment.external_id = "ext-123"
         shipment.tracking_number = "TRACK-456"
         shipment.label_url = "https://example.com/label.pdf"
@@ -138,13 +115,7 @@ class TestCLIShipmentRepository:
 
     async def test_create(self) -> None:
         repo = CLIShipmentRepository()
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[{"weight_kg": Decimal("1.0")}],
-        )
         shipment = await repo.create(
-            order=order,
             provider="inpost_locker",
             status=ShipmentStatus.NEW,
         )
@@ -154,13 +125,7 @@ class TestCLIShipmentRepository:
 
     async def test_get_by_id(self) -> None:
         repo = CLIShipmentRepository()
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
         created = await repo.create(
-            order=order,
             provider="test",
             status=ShipmentStatus.NEW,
         )
@@ -176,13 +141,7 @@ class TestCLIShipmentRepository:
 
     async def test_save(self) -> None:
         repo = CLIShipmentRepository()
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
         shipment = await repo.create(
-            order=order,
             provider="test",
             status=ShipmentStatus.NEW,
         )
@@ -194,13 +153,7 @@ class TestCLIShipmentRepository:
 
     async def test_update_status(self) -> None:
         repo = CLIShipmentRepository()
-        order = CLIOrder(
-            sender_address={},
-            receiver_address={},
-            parcels=[],
-        )
         shipment = await repo.create(
-            order=order,
             provider="test",
             status=ShipmentStatus.NEW,
         )

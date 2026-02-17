@@ -11,7 +11,7 @@ import typer
 from rich.console import Console
 
 from sendparcel_cli.config import ConfigManager, get_default_config_path
-from sendparcel_cli.models import CLIOrder, CLIShipmentRepository
+from sendparcel_cli.models import CLIShipmentRepository
 from sendparcel_cli.output import (
     format_config_check,
     format_providers_table,
@@ -334,12 +334,6 @@ def create_label(
 
     extra_kwargs = _parse_kwargs(kwarg)
 
-    order = CLIOrder(
-        sender_address=sender_addr,
-        receiver_address=receiver_addr,
-        parcels=[{"weight_kg": Decimal(str(weight))}],
-    )
-
     repo = CLIShipmentRepository()
     flow_config = mgr.get_flow_config()
     flow = ShipmentFlow(
@@ -350,8 +344,10 @@ def create_label(
 
     async def _run() -> dict:
         shipment = await flow.create_shipment(
-            order=order,
-            provider_slug=slug,
+            slug,
+            sender_address=sender_addr,
+            receiver_address=receiver_addr,
+            parcels=[{"weight_kg": Decimal(str(weight))}],
             **extra_kwargs,
         )
         result = {

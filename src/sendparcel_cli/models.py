@@ -43,7 +43,6 @@ class CLIShipment:
     Satisfies sendparcel Shipment protocol.
     """
 
-    order: CLIOrder
     provider: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     status: str = ShipmentStatus.NEW
@@ -68,7 +67,6 @@ class CLIShipmentRepository:
     async def create(self, **kwargs) -> CLIShipment:
         """Create and store a new shipment."""
         shipment = CLIShipment(
-            order=kwargs["order"],
             provider=kwargs["provider"],
             status=kwargs.get("status", ShipmentStatus.NEW),
         )

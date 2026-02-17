@@ -66,3 +66,6 @@ source = ["sendparcel_cli"]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.uv.sources]
+python-sendparcel = { path = "../python-sendparcel", editable = true }
