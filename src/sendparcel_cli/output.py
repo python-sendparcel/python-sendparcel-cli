@@ -1,11 +1,13 @@
 """Rich output formatting helpers."""
 
+from typing import Any
+
 from rich.console import Console
 from rich.table import Table
 
 
 def format_providers_table(
-    providers: list[dict],
+    providers: list[dict[str, Any]],
     *,
     console: Console | None = None,
 ) -> None:
@@ -41,10 +43,10 @@ def format_providers_table(
         cancel = "[green]✓[/green]" if p.get("has_cancel") else "[dim]---[/dim]"
 
         table.add_row(
-            p["slug"],
-            p["display_name"],
-            p["confirmation_method"],
-            ", ".join(p["countries"]),
+            str(p["slug"]),
+            str(p["display_name"]),
+            str(p["confirmation_method"]),
+            ", ".join(str(c) for c in p["countries"]),
             configured,
             label,
             callback,
@@ -56,7 +58,7 @@ def format_providers_table(
 
 
 def format_shipment_result(
-    result: dict,
+    result: dict[str, Any],
     *,
     console: Console | None = None,
 ) -> None:
@@ -81,8 +83,8 @@ def format_shipment_result(
 
 def format_config_check(
     slug: str,
-    schema: dict,
-    config: dict,
+    schema: dict[str, Any],
+    config: dict[str, Any],
     *,
     console: Console | None = None,
 ) -> None:
@@ -97,10 +99,11 @@ def format_config_check(
     table.add_column("Status")
 
     for field_name, field_info in schema.items():
-        required = field_info.get("required", False)
-        secret = field_info.get("secret", False)
-        field_type = field_info.get("type", "str")
-        default = field_info.get("default")
+        field_info_typed = field_info
+        required = field_info_typed.get("required", False)
+        secret = field_info_typed.get("secret", False)
+        field_type = field_info_typed.get("type", "str")
+        default = field_info_typed.get("default")
         value = config.get(field_name)
 
         req_str = "[red]Yes[/red]" if required else "No"

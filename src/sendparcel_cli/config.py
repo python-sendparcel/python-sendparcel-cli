@@ -2,6 +2,7 @@
 
 import tomllib
 from pathlib import Path
+from typing import cast
 
 import tomli_w
 
@@ -20,37 +21,42 @@ class ConfigManager:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path or get_default_config_path()
 
-    def load(self) -> dict:
+    def load(self) -> dict[str, object]:
         """Load config from TOML file. Returns empty dict if missing."""
         if not self.config_path.exists():
             return {}
         with open(self.config_path, "rb") as f:
             return tomllib.load(f)
 
-    def save(self, data: dict) -> None:
+    def save(self, data: dict[str, object]) -> None:
         """Save config to TOML file, creating parent directories."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, "wb") as f:
             tomli_w.dump(data, f)
 
-    def get_provider_config(self, slug: str) -> dict:
+    def get_provider_config(self, slug: str) -> dict[str, object]:
         """Get configuration for a specific provider."""
         config = self.load()
-        return config.get("providers", {}).get(slug, {})
+        providers = config.get("providers", {})
+        if not isinstance(providers, dict):
+            return {}
+        return cast(dict[str, object], providers.get(slug, {}))
 
-    def set_provider_config(self, slug: str, provider_config: dict) -> None:
+    def set_provider_config(
+        self, slug: str, provider_config: dict[str, object]
+    ) -> None:
         """Set configuration for a specific provider and save."""
         config = self.load()
         if "providers" not in config:
             config["providers"] = {}
-        config["providers"][slug] = provider_config
+        config["providers"][slug] = provider_config  # type: ignore[index]
         self.save(config)
 
-    def get_flow_config(self) -> dict:
+    def get_flow_config(self) -> dict[str, object]:
         """Get config dict keyed by provider slug for ShipmentFlow.
 
         ShipmentFlow expects config like:
             {"inpost_locker": {"token": "...", ...}, "dpd_standard": {...}}
         """
         config = self.load()
-        return config.get("providers", {})
+        return config.get("providers", {})  # type: ignore[return-value]

@@ -34,7 +34,7 @@ class CLIShipmentRepository:
         """Get shipment by ID. Raises KeyError if not found."""
         return self._store[shipment_id]
 
-    async def create(self, **kwargs) -> CLIShipment:
+    async def create(self, **kwargs: str) -> CLIShipment:
         """Create and store a new shipment."""
         shipment = CLIShipment(
             provider=kwargs["provider"],
@@ -49,7 +49,7 @@ class CLIShipmentRepository:
         return shipment
 
     async def update_status(
-        self, shipment_id: str, status: str, **fields
+        self, shipment_id: str, status: str, **fields: str
     ) -> CLIShipment:
         """Update shipment status and optional fields."""
         shipment = self._store[shipment_id]

@@ -4,7 +4,7 @@ import contextlib
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import anyio
 import typer
@@ -38,9 +38,9 @@ def _get_config_manager(config_path: Path | None) -> ConfigManager:
     return ConfigManager(config_path or get_default_config_path())
 
 
-def _parse_kwargs(kwarg_list: list[str] | None) -> dict:
+def _parse_kwargs(kwarg_list: list[str] | None) -> dict[str, str]:
     """Parse --kwarg KEY=VALUE pairs into a dict."""
-    result: dict = {}
+    result: dict[str, str] = {}
     for item in kwarg_list or []:
         if "=" not in item:
             raise typer.BadParameter(
@@ -51,18 +51,18 @@ def _parse_kwargs(kwarg_list: list[str] | None) -> dict:
     return result
 
 
-def _load_address_file(path: Path | None) -> dict:
+def _load_address_file(path: Path | None) -> dict[str, Any]:
     """Load address from a JSON file."""
     if path is None:
         return {}
     if not path.exists():
         raise typer.BadParameter(f"File not found: {path}")
     with open(path) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def _build_address(
-    file_data: dict,
+    file_data: dict[str, Any],
     first_name: str | None = None,
     last_name: str | None = None,
     phone: str | None = None,
@@ -73,7 +73,7 @@ def _build_address(
     postal_code: str | None = None,
     country_code: str | None = None,
     company: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Merge file data with inline flags. Flags override file values."""
     addr = dict(file_data)
     overrides = {
@@ -107,11 +107,11 @@ def init(config: ConfigOption = None) -> None:
         return
 
     registry.discover()
-    providers_config: dict = {}
+    providers_config: dict[str, dict[str, Any]] = {}
     for slug, _display_name in registry.get_choices():
         provider_class = registry.get_by_slug(slug)
         schema = getattr(provider_class, "config_schema", {})
-        provider_cfg: dict = {}
+        provider_cfg: dict[str, Any] = {}
         for field_name, field_info in schema.items():
             default = field_info.get("default")
             if default is not None:
@@ -297,6 +297,7 @@ def create_label(
     from sendparcel.flow import ShipmentFlow
     from sendparcel.provider import LabelProvider
     from sendparcel.registry import registry
+    from sendparcel.types import AddressInfo
 
     mgr = _get_config_manager(config)
     registry.discover()
@@ -357,20 +358,20 @@ def create_label(
     repo = CLIShipmentRepository()
     flow_config = mgr.get_flow_config()
     flow = ShipmentFlow(
-        repository=repo,
+        repository=repo,  # type: ignore[arg-type]
         config=flow_config,
         validators=[],
     )
 
-    async def _run() -> dict:
+    async def _run() -> dict[str, Any]:
         shipment = await flow.create_shipment(
             slug,
-            sender_address=sender_addr,
-            receiver_address=receiver_addr,
+            sender_address=cast("AddressInfo", sender_addr),
+            receiver_address=cast("AddressInfo", receiver_addr),
             parcels=[{"weight_kg": Decimal(str(weight))}],
             **extra_kwargs,
         )
-        result = {
+        result: dict[str, Any] = {
             "external_id": shipment.external_id,
             "tracking_number": shipment.tracking_number,
             "provider": shipment.provider,
@@ -406,7 +407,7 @@ def create_label(
     format_shipment_result(result, console=console)
 
 
-def _save_label(shipment, output_dir: Path | None) -> Path | None:
+def _save_label(shipment: Any, output_dir: Path | None) -> Path | None:
     """Save label from shipment if available."""
     if output_dir is None:
         output_dir = Path(".")
