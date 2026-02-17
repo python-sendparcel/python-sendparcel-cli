@@ -22,17 +22,34 @@ def format_providers_table(
     table.add_column("Method", style="magenta")
     table.add_column("Countries")
     table.add_column("Config", style="green")
+    table.add_column("Label", justify="center")
+    table.add_column("Callback", justify="center")
+    table.add_column("Status", justify="center")
+    table.add_column("Cancel", justify="center")
 
     for p in providers:
         configured = (
             "[green]OK[/green]" if p["configured"] else "[red]---[/red]"
         )
+
+        # Capability flags (✓ = supported, --- = not supported)
+        label = "[green]✓[/green]" if p.get("has_label") else "[dim]---[/dim]"
+        callback = (
+            "[green]✓[/green]" if p.get("has_callback") else "[dim]---[/dim]"
+        )
+        status = "[green]✓[/green]" if p.get("has_status") else "[dim]---[/dim]"
+        cancel = "[green]✓[/green]" if p.get("has_cancel") else "[dim]---[/dim]"
+
         table.add_row(
             p["slug"],
             p["display_name"],
             p["confirmation_method"],
             ", ".join(p["countries"]),
             configured,
+            label,
+            callback,
+            status,
+            cancel,
         )
 
     console.print(table)

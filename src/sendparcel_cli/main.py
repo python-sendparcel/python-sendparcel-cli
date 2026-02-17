@@ -130,6 +130,12 @@ def init(config: ConfigOption = None) -> None:
 @app.command()
 def providers(config: ConfigOption = None) -> None:
     """List installed providers and their configuration status."""
+    from sendparcel.provider import (
+        CancellableProvider,
+        LabelProvider,
+        PullStatusProvider,
+        PushCallbackProvider,
+    )
     from sendparcel.registry import registry
 
     mgr = _get_config_manager(config)
@@ -157,6 +163,12 @@ def providers(config: ConfigOption = None) -> None:
                 "confirmation_method": str(provider_class.confirmation_method),
                 "countries": provider_class.supported_countries,
                 "configured": configured,
+                "has_label": issubclass(provider_class, LabelProvider),
+                "has_callback": issubclass(
+                    provider_class, PushCallbackProvider
+                ),
+                "has_status": issubclass(provider_class, PullStatusProvider),
+                "has_cancel": issubclass(provider_class, CancellableProvider),
             }
         )
 
@@ -283,16 +295,24 @@ def create_label(
 ) -> None:
     """Create a test shipment and download the label."""
     from sendparcel.flow import ShipmentFlow
+    from sendparcel.provider import LabelProvider
     from sendparcel.registry import registry
 
     mgr = _get_config_manager(config)
     registry.discover()
 
     try:
-        registry.get_by_slug(slug)
+        provider_class = registry.get_by_slug(slug)
     except KeyError:
         console.print(f"[red]Provider {slug!r} not found.[/red]")
         raise typer.Exit(code=1) from None
+
+    if not issubclass(provider_class, LabelProvider):
+        console.print(
+            f"[red]Error: Provider {slug!r} does not support label creation.[/red]\n"
+            f"[dim]Run 'sendparcel providers' to see which providers support labels.[/dim]"
+        )
+        raise typer.Exit(code=1)
 
     sender_data = _load_address_file(sender_file)
     sender_addr = _build_address(
