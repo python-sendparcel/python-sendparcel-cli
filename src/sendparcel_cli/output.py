@@ -1,0 +1,1 @@
+"""Rich output formatting helpers."""
