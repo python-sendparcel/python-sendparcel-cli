@@ -1,7 +1,13 @@
 """Tests for CLI commands."""
 
+import base64
 from pathlib import Path
+from typing import Any
 
+from sendparcel.enums import LabelFormat
+from sendparcel.provider import BaseProvider
+from sendparcel.registry import registry
+from sendparcel.types import ShipmentCreateResult
 from typer.testing import CliRunner
 
 from sendparcel_cli.main import app
@@ -72,9 +78,171 @@ class TestCheckConfigCommand:
             ],
         )
         assert result.exit_code != 0
+        assert "not found" in result.stdout.lower()
 
 
 class TestCreateLabelCommand:
+    def test_provider_with_inline_label_succeeds(self, tmp_path: Path) -> None:
+        class InlineLabelProvider(BaseProvider):
+            slug = "inline_label_cli_test"
+            display_name = "Inline Label CLI Test"
+
+            async def create_shipment(
+                self,
+                *,
+                sender_address: Any,
+                receiver_address: Any,
+                parcels: Any,
+                **kwargs: Any,
+            ) -> ShipmentCreateResult:
+                return ShipmentCreateResult(
+                    external_id="inline-1",
+                    tracking_number="TRACK-1",
+                    label={
+                        "format": LabelFormat.PDF,
+                        "content_base64": base64.b64encode(
+                            b"%PDF-inline-label"
+                        ).decode("ascii"),
+                    },
+                )
+
+        registry.register(InlineLabelProvider)
+        try:
+            config_path = tmp_path / "config.toml"
+            config_path.write_text("")
+            result = runner.invoke(
+                app,
+                [
+                    "create-label",
+                    "inline_label_cli_test",
+                    "--config",
+                    str(config_path),
+                    "--sender-first-name",
+                    "Jan",
+                    "--receiver-first-name",
+                    "Anna",
+                    "--output-dir",
+                    str(tmp_path),
+                ],
+            )
+            assert result.exit_code == 0
+            label_files = list(tmp_path.glob("label-*.pdf"))
+            assert len(label_files) == 1
+            assert label_files[0].read_bytes() == b"%PDF-inline-label"
+        finally:
+            registry.unregister("inline_label_cli_test")
+
+    def test_provider_with_zpl_label_uses_zpl_extension(
+        self, tmp_path: Path
+    ) -> None:
+        class ZplLabelProvider(BaseProvider):
+            slug = "zpl_label_cli_test"
+            display_name = "ZPL Label CLI Test"
+
+            async def create_shipment(
+                self,
+                *,
+                sender_address: Any,
+                receiver_address: Any,
+                parcels: Any,
+                **kwargs: Any,
+            ) -> ShipmentCreateResult:
+                return ShipmentCreateResult(
+                    external_id="zpl-1",
+                    tracking_number="TRACK-ZPL",
+                    label={
+                        "format": LabelFormat.ZPL,
+                        "content_base64": base64.b64encode(
+                            b"^XA^FO50,50^FDHello^FS^XZ"
+                        ).decode("ascii"),
+                    },
+                )
+
+        registry.register(ZplLabelProvider)
+        try:
+            config_path = tmp_path / "config.toml"
+            config_path.write_text("")
+            result = runner.invoke(
+                app,
+                [
+                    "create-label",
+                    "zpl_label_cli_test",
+                    "--config",
+                    str(config_path),
+                    "--sender-first-name",
+                    "Jan",
+                    "--receiver-first-name",
+                    "Anna",
+                    "--output-dir",
+                    str(tmp_path),
+                ],
+            )
+            assert result.exit_code == 0
+            label_files = list(tmp_path.glob("label-*.zpl"))
+            assert len(label_files) == 1
+            assert label_files[0].read_bytes() == b"^XA^FO50,50^FDHello^FS^XZ"
+        finally:
+            registry.unregister("zpl_label_cli_test")
+
+    def test_provider_without_any_label_support_fails(
+        self, tmp_path: Path
+    ) -> None:
+        class NoLabelProvider(BaseProvider):
+            slug = "no_label_cli_test"
+            display_name = "No Label CLI Test"
+
+            async def create_shipment(
+                self,
+                *,
+                sender_address: Any,
+                receiver_address: Any,
+                parcels: Any,
+                **kwargs: Any,
+            ) -> ShipmentCreateResult:
+                return ShipmentCreateResult(
+                    external_id="no-label-1",
+                    tracking_number="TRACK-1",
+                )
+
+        registry.register(NoLabelProvider)
+        try:
+            config_path = tmp_path / "config.toml"
+            config_path.write_text("")
+            result = runner.invoke(
+                app,
+                [
+                    "create-label",
+                    "no_label_cli_test",
+                    "--config",
+                    str(config_path),
+                    "--sender-first-name",
+                    "Jan",
+                    "--receiver-first-name",
+                    "Anna",
+                    "--output-dir",
+                    str(tmp_path),
+                ],
+            )
+            assert result.exit_code != 0
+            assert "did not return a label" in result.stdout.lower()
+        finally:
+            registry.unregister("no_label_cli_test")
+
+    def test_unknown_provider_exits_with_error(self, tmp_path: Path) -> None:
+        config_path = tmp_path / "config.toml"
+        config_path.write_text("")
+        result = runner.invoke(
+            app,
+            [
+                "create-label",
+                "nonexistent_provider_xyz",
+                "--config",
+                str(config_path),
+            ],
+        )
+        assert result.exit_code != 0
+        assert "not found" in result.stdout.lower()
+
     def test_missing_required_address_flags(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.toml"
         config_path.write_text("")
@@ -150,6 +318,9 @@ class TestCreateLabelCommand:
             ],
         )
         assert result.exit_code == 0
+        label_files = list(tmp_path.glob("label-*.txt"))
+        assert len(label_files) == 1
+        assert "https://dummy.local/labels/" in label_files[0].read_text()
 
     def test_with_inline_flags(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.toml"
@@ -195,6 +366,7 @@ class TestCreateLabelCommand:
             ],
         )
         assert result.exit_code == 0
+        assert len(list(tmp_path.glob("label-*.txt"))) == 1
 
     def test_kwarg_passthrough(self, tmp_path: Path) -> None:
         import json
@@ -254,3 +426,4 @@ class TestCreateLabelCommand:
             ],
         )
         assert result.exit_code == 0
+        assert len(list(tmp_path.glob("label-*.txt"))) == 1

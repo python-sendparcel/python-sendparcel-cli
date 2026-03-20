@@ -62,7 +62,7 @@ Output (example with InPost and DPD installed):
 ├────────────────┼──────────────────┼────────┼───────────┼───────────┤
 │ inpost_locker  │ InPost Paczkomat │ PUSH   │ PL        │ OK        │
 │ inpost_courier │ InPost Kurier    │ PUSH   │ PL        │ ---       │
-│ dpd_standard   │ DPD Kurier       │ PULL   │ PL        │ OK        │
+│ dpd_standard   │ DPD Kurier       │ NONE   │ PL        │ OK        │
 └────────────────┴──────────────────┴────────┴───────────┴───────────┘
 ```
 
@@ -263,34 +263,23 @@ These kwargs are forwarded directly to `ShipmentFlow.create_shipment()` and `Shi
 
 The `create-label` command saves labels to disk automatically:
 
-- **Base64 data URIs** (e.g. from providers returning embedded PDF data) are decoded and saved as binary `.pdf` files.
-- **URL strings** (e.g. from providers returning download links) are saved as text files containing the URL.
-- Labels are saved as `label-<external_id>.pdf` in the output directory.
+- **Base64 payloads** from `label["content_base64"]` are decoded and saved as binary `.pdf` files.
+- **URL results** from `label["url"]` are saved as text files containing the URL.
+- Binary labels are saved as `label-<external_id>.pdf`; URL-only labels are saved as `label-<external_id>.txt`.
 
 ## Programmatic Usage
 
 While primarily a CLI tool, the package exports its models and config manager for scripting:
 
 ```python
-from sendparcel_cli import (
-    CLIOrder,
-    CLIShipment,
-    CLIShipmentRepository,
-    ConfigManager,
-)
+from sendparcel_cli import CLIShipment, CLIShipmentRepository, ConfigManager
 
 # Load config
 mgr = ConfigManager()  # uses default path
 config = mgr.get_provider_config("inpost_locker")
 
-# Create in-memory order (satisfies sendparcel Order protocol)
-order = CLIOrder(
-    sender_address={"first_name": "Jan", "last_name": "Nadawca", ...},
-    receiver_address={"first_name": "Anna", "last_name": "Odbiorca", ...},
-    parcels=[{"weight_kg": Decimal("2.5")}],
-)
-
-# In-memory repository (satisfies sendparcel ShipmentRepository protocol)
+# In-memory shipment + repository for scripting
+shipment = CLIShipment(provider="inpost_locker")
 repo = CLIShipmentRepository()
 ```
 
@@ -313,7 +302,7 @@ The CLI handles errors with colored Rich output and appropriate exit codes:
 | Dependency | Version |
 |---|---|
 | Python | >= 3.12 |
-| python-sendparcel | >= 0.1.0 |
+| python-sendparcel | >= 0.1.1 |
 | typer | >= 0.15.0 |
 | rich | >= 13.0 |
 | tomli-w | >= 1.0 |

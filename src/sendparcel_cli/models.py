@@ -18,7 +18,6 @@ class CLIShipment:
     status: str = ShipmentStatus.NEW
     external_id: str = ""
     tracking_number: str = ""
-    label_url: str = ""
 
 
 class CLIShipmentRepository:

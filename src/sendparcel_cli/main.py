@@ -1,6 +1,6 @@
 """CLI entry point and typer app."""
 
-import contextlib
+import base64
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -9,6 +9,8 @@ from typing import Annotated, Any, cast
 import anyio
 import typer
 from rich.console import Console
+from sendparcel.exceptions import ProviderNotFoundError
+from sendparcel.types import LabelInfo
 
 from sendparcel_cli.config import ConfigManager, get_default_config_path
 from sendparcel_cli.models import CLIShipmentRepository
@@ -188,7 +190,7 @@ def check_config(
 
     try:
         provider_class = registry.get_by_slug(slug)
-    except KeyError:
+    except ProviderNotFoundError:
         console.print(f"[red]Provider {slug!r} not found.[/red]")
         raise typer.Exit(code=1) from None
 
@@ -295,7 +297,6 @@ def create_label(
 ) -> None:
     """Create a test shipment and download the label."""
     from sendparcel.flow import ShipmentFlow
-    from sendparcel.provider import LabelProvider
     from sendparcel.registry import registry
     from sendparcel.types import AddressInfo
 
@@ -303,17 +304,10 @@ def create_label(
     registry.discover()
 
     try:
-        provider_class = registry.get_by_slug(slug)
-    except KeyError:
+        registry.get_by_slug(slug)
+    except ProviderNotFoundError:
         console.print(f"[red]Provider {slug!r} not found.[/red]")
         raise typer.Exit(code=1) from None
-
-    if not issubclass(provider_class, LabelProvider):
-        console.print(
-            f"[red]Error: Provider {slug!r} does not support label creation.[/red]\n"
-            f"[dim]Run 'sendparcel providers' to see which providers support labels.[/dim]"
-        )
-        raise typer.Exit(code=1)
 
     sender_data = _load_address_file(sender_file)
     sender_addr = _build_address(
@@ -364,74 +358,88 @@ def create_label(
     )
 
     async def _run() -> dict[str, Any]:
-        shipment = await flow.create_shipment(
+        created = await flow.create_shipment(
             slug,
             sender_address=cast("AddressInfo", sender_addr),
             receiver_address=cast("AddressInfo", receiver_addr),
             parcels=[{"weight_kg": Decimal(str(weight))}],
             **extra_kwargs,
         )
+        shipment = created.shipment
         result: dict[str, Any] = {
             "external_id": shipment.external_id,
             "tracking_number": shipment.tracking_number,
             "provider": shipment.provider,
             "status": shipment.status,
         }
+        label_payload = created.label
 
-        if shipment.label_url:
-            result["label_url"] = shipment.label_url
+        if label_payload is None:
+            try:
+                labelled = await flow.create_label(
+                    shipment,
+                    **extra_kwargs,
+                )
+            except Exception:
+                labelled = None
+            if labelled is not None:
+                shipment = labelled.shipment
+                label_payload = labelled.label
 
-        # Try to create label if provider supports it
-        with contextlib.suppress(Exception):
-            shipment = await flow.create_label(
-                shipment,
-                **extra_kwargs,
+        label_path = _save_label(
+            label_payload, shipment.external_id, output_dir
+        )
+        if label_payload is None or label_path is None:
+            raise ValueError(
+                f"Provider {slug!r} did not return a label payload"
             )
-
-        # Save label to file if URL available
-        label_path = _save_label(shipment, output_dir)
         if label_path:
             result["label_path"] = str(label_path)
 
         return result
 
     try:
-        result = anyio.from_thread.run(_run)
-    except Exception:
-        try:
-            result = anyio.run(_run)
-        except Exception as exc:
-            console.print(f"[red]Error: {exc}[/red]")
-            raise typer.Exit(code=1) from None
+        result = anyio.run(_run)
+    except Exception as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1) from None
 
     format_shipment_result(result, console=console)
 
 
-def _save_label(shipment: Any, output_dir: Path | None) -> Path | None:
-    """Save label from shipment if available."""
+def _save_label(
+    label: LabelInfo | None,
+    external_id: str,
+    output_dir: Path | None,
+) -> Path | None:
+    """Save a returned label payload to disk."""
     if output_dir is None:
         output_dir = Path(".")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    label_url = getattr(shipment, "label_url", "")
+    if not label:
+        return None
+
+    content_base64 = str(label.get("content_base64", ""))
+    if content_base64:
+        label_format = str(label.get("format", "PDF")).lower()
+        extension = {
+            "pdf": ".pdf",
+            "png": ".png",
+            "zpl": ".zpl",
+            "epl": ".epl",
+        }.get(label_format, ".bin")
+        filename = f"label-{external_id or 'label'}{extension}"
+        label_path = output_dir / filename
+
+        label_path.write_bytes(base64.b64decode(content_base64))
+        return label_path
+
+    label_url = str(label.get("url", ""))
     if not label_url:
         return None
 
-    ext_id = getattr(shipment, "external_id", "label")
-    filename = f"label-{ext_id}.pdf"
-    label_path = output_dir / filename
-
-    # If label_url looks like base64 data, decode and save
-    if label_url.startswith("data:"):
-        import base64
-
-        # Circular import workaround not needed; inline for
-        # conditional-only usage
-        _, _, b64_data = label_url.partition(",")
-        label_path.write_bytes(base64.b64decode(b64_data))
-        return label_path
-
-    # For URL strings (like DummyProvider), save as text
+    label_path = output_dir / f"label-{external_id or 'label'}.txt"
     label_path.write_text(f"Label URL: {label_url}\n")
     return label_path

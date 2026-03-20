@@ -24,7 +24,7 @@ class TestFormatProvidersTable:
             {
                 "slug": "dpd_standard",
                 "display_name": "DPD Kurier",
-                "confirmation_method": "PULL",
+                "confirmation_method": "NONE",
                 "countries": ["PL"],
                 "configured": False,
             },
@@ -36,6 +36,7 @@ class TestFormatProvidersTable:
         assert "inpost_locker" in output
         assert "InPost Paczkomat" in output
         assert "dpd_standard" in output
+        assert "NONE" in output
 
     def test_empty_providers(self) -> None:
         buf = StringIO()
@@ -115,7 +116,7 @@ class TestFormatConfigCheck:
                 "description": "API token",
             },
         }
-        config = {}
+        config: dict[str, str] = {}
         buf = StringIO()
         console = Console(file=buf, force_terminal=True, width=120)
         format_config_check(

@@ -16,7 +16,7 @@ class TestCLIShipment:
         assert shipment.status == ShipmentStatus.NEW
         assert shipment.external_id == ""
         assert shipment.tracking_number == ""
-        assert shipment.label_url == ""
+        assert not hasattr(shipment, "label_url")
         assert shipment.id  # auto-generated, non-empty
 
     def test_id_is_unique(self) -> None:
@@ -28,7 +28,6 @@ class TestCLIShipment:
         shipment = CLIShipment(provider="test")
         shipment.external_id = "ext-123"
         shipment.tracking_number = "TRACK-456"
-        shipment.label_url = "https://example.com/label.pdf"
         shipment.status = ShipmentStatus.CREATED
         assert shipment.external_id == "ext-123"
         assert shipment.tracking_number == "TRACK-456"
