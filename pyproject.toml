@@ -1,6 +1,6 @@
 [project]
 name = "python-sendparcel-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Developer CLI for python-sendparcel provider testing and debugging."
 readme = "README.md"
 license = { text = "MIT" }
