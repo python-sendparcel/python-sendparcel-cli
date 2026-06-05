@@ -4,7 +4,7 @@ import base64
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 
 import anyio
 import typer
@@ -22,7 +22,8 @@ from sendparcel_cli.output import (
 
 app = typer.Typer(
     name="sendparcel",
-    help="Developer CLI for python-sendparcel provider testing.",
+    help="Developer CLI for python-sendparcel provider testing and debugging.",
+    add_completion=False,
 )
 console = Console()
 
@@ -59,8 +60,14 @@ def _load_address_file(path: Path | None) -> dict[str, Any]:
         return {}
     if not path.exists():
         raise typer.BadParameter(f"File not found: {path}")
-    with open(path) as f:
-        return cast(dict[str, Any], json.load(f))
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"Invalid JSON in {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise typer.BadParameter(f"Expected JSON object in {path}")
+    return data
 
 
 def _build_address(
@@ -298,7 +305,6 @@ def create_label(
     """Create a test shipment and download the label."""
     from sendparcel.flow import ShipmentFlow
     from sendparcel.registry import registry
-    from sendparcel.types import AddressInfo
 
     mgr = _get_config_manager(config)
     registry.discover()
@@ -358,10 +364,22 @@ def create_label(
     )
 
     async def _run() -> dict[str, Any]:
+        # Build TypedDict-compatible address dicts from the merged data.
+        sender_addr_info: dict[str, Any] = {
+            k: v for k, v in sender_addr.items() if v is not None
+        }
+        receiver_addr_info: dict[str, Any] = {
+            k: v for k, v in receiver_addr.items() if v is not None
+        }
+        if not sender_addr_info and not receiver_addr_info:
+            raise ValueError(
+                "No address fields provided. "
+                "Use --sender-file/--receiver-file or inline flags."
+            )
         created = await flow.create_shipment(
             slug,
-            sender_address=cast("AddressInfo", sender_addr),
-            receiver_address=cast("AddressInfo", receiver_addr),
+            sender_address=sender_addr_info,  # type: ignore[arg-type]
+            receiver_address=receiver_addr_info,  # type: ignore[arg-type]
             parcels=[{"weight_kg": Decimal(str(weight))}],
             **extra_kwargs,
         )
@@ -380,7 +398,10 @@ def create_label(
                     shipment,
                     **extra_kwargs,
                 )
-            except Exception:
+            except ProviderNotFoundError:
+                raise
+            except Exception as exc:
+                console.print(f"[yellow]Label creation failed: {exc}[/]")
                 labelled = None
             if labelled is not None:
                 shipment = labelled.shipment
@@ -400,6 +421,8 @@ def create_label(
 
     try:
         result = anyio.run(_run)
+    except SystemExit:
+        raise
     except Exception as exc:
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(code=1) from None

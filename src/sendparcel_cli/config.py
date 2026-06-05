@@ -1,11 +1,34 @@
 """Configuration file management."""
 
+from __future__ import annotations
+
+import logging
 import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
 import tomli_w
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_toml(path: Path) -> dict[str, Any]:
+    """Parse a TOML file with error handling.
+
+    Returns an empty dict if the file is empty or contains no valid TOML.
+    Raises ``ValueError`` for malformed TOML.
+    """
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(f"Malformed TOML in {path}: {exc}") from exc
+    except ValueError as exc:
+        # Empty file or non-TOML content
+        if "could not determine a parser" in str(exc):
+            return {}
+        raise
 
 
 def get_default_config_path() -> Path:
@@ -23,11 +46,14 @@ class ConfigManager:
         self.config_path = config_path or get_default_config_path()
 
     def load(self) -> dict[str, Any]:
-        """Load config from TOML file. Returns empty dict if missing."""
+        """Load config from TOML file.
+
+        Returns an empty dict if the file is missing. Raises ValueError
+        for malformed TOML content.
+        """
         if not self.config_path.exists():
             return {}
-        with open(self.config_path, "rb") as f:
-            return tomllib.load(f)
+        return _parse_toml(self.config_path)
 
     def save(self, data: Mapping[str, Any]) -> None:
         """Save config to TOML file, creating parent directories."""
